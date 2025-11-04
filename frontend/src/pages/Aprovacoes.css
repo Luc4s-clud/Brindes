@@ -1,0 +1,106 @@
+.aprovacoes {
+  animation: fadeIn 0.5s;
+}
+
+.aprovacoes h1 {
+  color: #2c3e50;
+  margin-bottom: 2rem;
+}
+
+.solicitacao-card-aprovacao {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+  border-left: 4px solid #3498db;
+}
+
+.acoes-aprovacao {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #ecf0f1;
+}
+
+.btn-aprovar {
+  flex: 1;
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-aprovar:hover {
+  background: #229954;
+}
+
+.btn-rejeitar {
+  flex: 1;
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-rejeitar:hover {
+  background: #c0392b;
+}
+
+.historico-aprovacoes {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.historico-aprovacoes h4 {
+  color: #2c3e50;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.historico-aprovacoes ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.historico-aprovacoes li {
+  padding: 0.5rem 0;
+  color: #34495e;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.historico-aprovacoes li:last-child {
+  border-bottom: none;
+}
+
+.historico-aprovacoes .aprovado {
+  color: #27ae60;
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
+.historico-aprovacoes .rejeitado {
+  color: #e74c3c;
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
+.observacao {
+  color: #7f8c8d;
+  font-style: italic;
+}
+

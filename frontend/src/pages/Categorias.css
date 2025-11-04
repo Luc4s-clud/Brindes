@@ -1,0 +1,57 @@
+.categorias-page {
+  animation: fadeIn 0.5s;
+}
+
+.categorias-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.categoria-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.categoria-card:hover {
+  transform: translateX(5px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.categoria-content {
+  flex: 1;
+}
+
+.categoria-content h3 {
+  color: #2c3e50;
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.categoria-descricao {
+  color: #7f8c8d;
+  line-height: 1.5;
+}
+
+.categoria-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

@@ -1,0 +1,27 @@
+# Exemplo de configuração do .env
+# Copie este conteúdo para o arquivo .env e ajuste conforme necessário
+
+PORT=3001
+
+# URL do banco de dados MySQL usando root
+# Formato: mysql://usuario:senha@host:porta/banco
+DATABASE_URL="mysql://root:SUA_SENHA_ROOT@localhost:3306/brindes"
+
+# Ambiente
+NODE_ENV=development
+
+# JWT Secret (para autenticação futura)
+JWT_SECRET=seu_secret_jwt_aqui
+
+# IMPORTANTE: Se a senha do root contiver caracteres especiais, codifique-os:
+# @ → %40
+# # → %23
+# $ → %24
+# % → %25
+# & → %26
+# + → %2B
+# = → %3D
+#
+# Exemplo: se a senha for "Minha@Senha#123"
+# DATABASE_URL="mysql://root:Minha%40Senha%23123@localhost:3306/brindes"
+

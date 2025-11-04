@@ -1,0 +1,189 @@
+.minhas-solicitacoes {
+  animation: fadeIn 0.5s;
+}
+
+.minhas-solicitacoes h1 {
+  color: #2c3e50;
+  margin-bottom: 2rem;
+}
+
+.filters {
+  margin-bottom: 2rem;
+}
+
+.filter-select {
+  padding: 0.75rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 1rem;
+  min-width: 200px;
+}
+
+.solicitacoes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.solicitacao-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s;
+}
+
+.solicitacao-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.solicitacao-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #ecf0f1;
+}
+
+.solicitacao-header h3 {
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.solicitacao-meta {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.status-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-pendente {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-aprovada {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-rejeitada {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.status-entregue {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.status-cancelada {
+  background-color: #e2e3e5;
+  color: #383d41;
+}
+
+.solicitacao-info {
+  margin-bottom: 1.5rem;
+}
+
+.info-row {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.info-row span {
+  color: #34495e;
+}
+
+.valor-total {
+  font-size: 1.2rem;
+  color: #27ae60;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+
+.itens-lista,
+.aprovacoes-lista {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.itens-lista h4,
+.aprovacoes-lista h4 {
+  color: #2c3e50;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.itens-lista ul,
+.aprovacoes-lista ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.itens-lista li,
+.aprovacoes-lista li {
+  padding: 0.5rem 0;
+  color: #34495e;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.itens-lista li:last-child,
+.aprovacoes-lista li:last-child {
+  border-bottom: none;
+}
+
+.item-valor {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.solicitacao-actions {
+  padding-top: 1rem;
+  border-top: 2px solid #ecf0f1;
+}
+
+.btn-cancelar {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-cancelar:hover {
+  background: #c0392b;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #7f8c8d;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

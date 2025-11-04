@@ -1,0 +1,230 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums para padronização
+enum PerfilUsuario {
+  MARKETING
+  GERENTE
+  SOLICITANTE
+  DIRETOR
+}
+
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+  ENTREGUE
+  CANCELADA
+}
+
+enum StatusAprovacao {
+  APROVADA
+  REJEITADA
+}
+
+enum StatusRecomendacao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+enum TipoMovimentacao {
+  ENTRADA
+  SAIDA
+}
+
+model Brinde {
+  id                Int      @id @default(autoincrement())
+  nome              String   @unique
+  codigo            String?  @unique // Código Mkt (ex: MKT0001) - único
+  descricao         String?  @db.Text
+  categoria         String?
+  quantidade        Int      @default(0)
+  valorUnitario     Float?
+  fornecedor        String?
+  fotoUrl           String?  // URL da foto do brinde
+  especificacoes    String?  @db.Text // Tamanho, peso, cor, material, qualidade
+  validade          DateTime? // Data de validade (para materiais perecíveis)
+  estoqueMinimo     Int?     // Nível mínimo de estoque (alerta)
+  recomendacaoUso   String?  @db.Text // Recomendação de uso
+  ativo             Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  movimentacoes     Movimentacao[]
+  itensSolicitacao  ItemSolicitacao[]
+
+  @@index([codigo])
+  @@index([categoria])
+  @@index([ativo])
+  @@index([quantidade])
+  @@map("brindes")
+}
+
+model Categoria {
+  id          Int      @id @default(autoincrement())
+  nome        String   @unique
+  descricao   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("categorias")
+}
+
+model Movimentacao {
+  id          Int      @id @default(autoincrement())
+  brindeId    Int
+  tipo        TipoMovimentacao
+  quantidade  Int
+  motivo      String?
+  observacao  String?  @db.Text
+  valorUnitario Float? // Valor pago na movimentação
+  fornecedor  String?
+  createdAt   DateTime @default(now())
+
+  brinde      Brinde   @relation(fields: [brindeId], references: [id], onDelete: Cascade)
+
+  @@index([brindeId])
+  @@index([tipo])
+  @@index([createdAt])
+  @@map("movimentacoes")
+}
+
+model Usuario {
+  id          Int      @id @default(autoincrement())
+  nome        String
+  email       String   @unique
+  senha       String   // Hash da senha
+  perfil      PerfilUsuario
+  setor       String?
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  centroCusto CentroCusto?
+  solicitacoes Solicitacao[]
+  aprovacoes  Aprovacao[]
+
+  @@index([email])
+  @@index([perfil])
+  @@index([ativo])
+  @@map("usuarios")
+}
+
+model CentroCusto {
+  id          Int      @id @default(autoincrement())
+  nome        String   @unique
+  descricao   String?  @db.Text
+  orcamentoTotal Float? // Orçamento total em reais
+  orcamentoUtilizado Float @default(0)
+  limitePorGerente Float? // Limite por gerente
+  limitePorEvento Float? // Limite por evento
+  limitePorSetor Float? // Limite por setor
+  setor       String? // Marketing, Comercial, Suporte Técnico, etc.
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  usuarioId  Int?     @unique // Gerente responsável
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id])
+  solicitacoes Solicitacao[]
+
+  @@index([setor])
+  @@index([ativo])
+  @@map("centros_custo")
+}
+
+model Solicitacao {
+  id          Int      @id @default(autoincrement())
+  numeroSolicitacao String @unique // Número único da solicitação (ex: SOL-2024-001)
+  solicitanteId Int
+  centroCustoId Int
+  status      StatusSolicitacao @default(PENDENTE)
+  justificativa String? @db.Text
+  enderecoEntrega String? @db.Text
+  prazoEntrega DateTime?
+  finalidade  String? // Expodireto, Visita Técnica, Entrega Técnica, Suporte
+  valorTotal  Float?  // Valor total estimado
+  observacoes String? @db.Text
+  dataEntrega DateTime? // Data em que foi entregue
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  solicitante Usuario @relation(fields: [solicitanteId], references: [id])
+  centroCusto CentroCusto @relation(fields: [centroCustoId], references: [id])
+  itens       ItemSolicitacao[]
+  aprovacoes  Aprovacao[]
+
+  @@index([solicitanteId])
+  @@index([centroCustoId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("solicitacoes")
+}
+
+model ItemSolicitacao {
+  id            Int      @id @default(autoincrement())
+  solicitacaoId Int
+  brindeId      Int
+  quantidade    Int
+  quantidadeEntregue Int @default(0) // Quantidade realmente entregue
+  valorUnitario Float?   // Valor no momento da solicitação
+  observacao    String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  solicitacao   Solicitacao @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  brinde        Brinde @relation(fields: [brindeId], references: [id])
+
+  @@index([solicitacaoId])
+  @@index([brindeId])
+  @@map("itens_solicitacao")
+}
+
+model Aprovacao {
+  id            Int      @id @default(autoincrement())
+  solicitacaoId Int
+  aprovadorId   Int
+  status        StatusAprovacao
+  observacao    String?  @db.Text
+  nivelAprovacao Int     @default(1) // 1 = Gerente, 2 = Diretor (para aprovações em cascata)
+  createdAt     DateTime @default(now())
+
+  solicitacao   Solicitacao @relation(fields: [solicitacaoId], references: [id], onDelete: Cascade)
+  aprovador     Usuario @relation(fields: [aprovadorId], references: [id])
+
+  @@index([solicitacaoId])
+  @@index([aprovadorId])
+  @@index([status])
+  @@map("aprovacoes")
+}
+
+model Recomendacao {
+  id          Int      @id @default(autoincrement())
+  nome        String
+  descricao   String?  @db.Text
+  imagemUrl   String?  // URL da imagem sugerida
+  link        String?  // Link para o produto
+  categoria   String?
+  sugeridoPor String?  // Nome de quem sugeriu
+  email       String?  // Email de quem sugeriu
+  status      StatusRecomendacao @default(PENDENTE)
+  observacao  String?  @db.Text
+  aprovadoPor Int?     // ID do usuário que aprovou/rejeitou
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([categoria])
+  @@index([createdAt])
+  @@map("recomendacoes")
+}
+
