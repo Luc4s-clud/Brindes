@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { prisma } from '../utils/prisma';
 import { PerfilUsuario } from '@prisma/client';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'seu_secret_jwt_aqui';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_SECRET: string = process.env.JWT_SECRET || 'seu_secret_jwt_aqui';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d';
 
 export const login = async (req: Request, res: Response) => {
   try {
@@ -36,7 +36,7 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: usuario.id, perfil: usuario.perfil },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      { expiresIn: JWT_EXPIRES_IN } as SignOptions
     );
 
     res.json({
@@ -89,7 +89,7 @@ export const register = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: usuario.id, perfil: usuario.perfil },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      { expiresIn: JWT_EXPIRES_IN } as SignOptions
     );
 
     res.status(201).json({

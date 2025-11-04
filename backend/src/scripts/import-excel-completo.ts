@@ -353,7 +353,7 @@ async function processarSaidas(workbook: XLSX.WorkBook) {
         const movimentacao = await tx.movimentacao.create({
           data: {
             brindeId: brinde.id,
-            tipo: 'saida',
+            tipo: 'SAIDA',
             quantidade: quantidade,
             motivo: motivo?.toString() || 'Saída registrada',
             observacao: observacao || null,
@@ -420,7 +420,7 @@ async function processarBrindesEventos(workbook: XLSX.WorkBook) {
         where: {
           OR: [
             { codigo: codigo?.toString().trim() },
-            { nome: { contains: item?.toString().trim() || '', mode: 'insensitive' } },
+            { nome: { contains: item?.toString().trim() || '' } },
           ]
         }
       });
@@ -456,7 +456,7 @@ async function processarBrindesEventos(workbook: XLSX.WorkBook) {
         const movimentacao = await tx.movimentacao.create({
           data: {
             brindeId: brinde.id,
-            tipo: 'entrada',
+            tipo: 'ENTRADA',
             quantidade: quantidade,
             motivo: evento ? `Evento: ${evento}` : 'Entrada para evento',
             observacao: ano ? `Ano: ${ano}` : null,
