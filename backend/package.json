@@ -16,7 +16,8 @@
     "import:excel:completo": "tsx src/scripts/import-excel-completo.ts",
     "analyze:excel": "tsx src/scripts/analyze-excel.ts",
     "fix:duplicados": "tsx src/scripts/fix-duplicados.ts",
-    "create:admin": "tsx src/scripts/create-admin.ts"
+    "create:admin": "tsx src/scripts/create-admin.ts",
+    "create:centros-custo": "tsx src/scripts/create-centros-custo.ts"
   },
   "keywords": ["brindes", "api", "express"],
   "author": "",
