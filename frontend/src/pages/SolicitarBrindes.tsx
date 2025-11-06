@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { brindesService, Brinde } from '../services/brindes.service';
 import { centrosCustoService, CentroCusto } from '../services/centros-custo.service';
 import { solicitacoesService, ItemSolicitacao, CreateSolicitacaoData } from '../services/solicitacoes.service';
+import { useToast } from '../contexts/ToastContext';
+import { Modal } from '../components/Modal';
+import { Loading } from '../components/Loading';
+import { debounce } from '../utils/debounce';
+import { getImageUrl } from '../utils/apiUrl';
 import './SolicitarBrindes.css';
 
 function SolicitarBrindes() {
@@ -9,6 +14,7 @@ function SolicitarBrindes() {
   const [centrosCusto, setCentrosCusto] = useState<CentroCusto[]>([]);
   const [carrinho, setCarrinho] = useState<Array<ItemSolicitacao & { brinde: Brinde }>>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -22,14 +28,32 @@ function SolicitarBrindes() {
     finalidade: '',
     observacoes: '',
   });
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     loadData();
   }, []);
 
+  // Debounce da busca
+  const debouncedLoadBrindes = useMemo(
+    () => debounce(async (searchTerm: string, categoriaFilter: string) => {
+      try {
+        const params: { categoria?: string; search?: string; ativo?: boolean } = { ativo: true };
+        if (searchTerm) params.search = searchTerm;
+        if (categoriaFilter) params.categoria = categoriaFilter;
+        const data = await brindesService.getAll(params);
+        setBrindes(data);
+      } catch (error) {
+        console.error('Erro ao carregar brindes:', error);
+        showError('Erro ao carregar brindes');
+      }
+    }, 300),
+    [showError]
+  );
+
   useEffect(() => {
-    loadBrindes();
-  }, [search, categoria]);
+    debouncedLoadBrindes(search, categoria);
+  }, [search, categoria, debouncedLoadBrindes]);
 
   const loadData = async () => {
     try {
@@ -42,21 +66,9 @@ function SolicitarBrindes() {
       setCentrosCusto(centrosCustoData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      alert('Erro ao carregar dados');
+      showError('Erro ao carregar dados');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadBrindes = async () => {
-    try {
-      const params: { categoria?: string; search?: string; ativo?: boolean } = { ativo: true };
-      if (search) params.search = search;
-      if (categoria) params.categoria = categoria;
-      const data = await brindesService.getAll(params);
-      setBrindes(data);
-    } catch (error) {
-      console.error('Erro ao carregar brindes:', error);
     }
   };
 
@@ -105,16 +117,17 @@ function SolicitarBrindes() {
     e.preventDefault();
     
     if (!formData.centroCustoId) {
-      alert('Selecione um centro de custo');
+      showError('Selecione um centro de custo');
       return;
     }
 
     if (carrinho.length === 0) {
-      alert('Adicione pelo menos um item ao carrinho');
+      showError('Adicione pelo menos um item ao carrinho');
       return;
     }
 
     try {
+      setSubmitting(true);
       const data: CreateSolicitacaoData = {
         centroCustoId: parseInt(formData.centroCustoId),
         justificativa: formData.justificativa,
@@ -131,7 +144,7 @@ function SolicitarBrindes() {
       };
 
       await solicitacoesService.create(data);
-      alert('Solicitação criada com sucesso!');
+      showSuccess('Solicitação criada com sucesso!');
       setCarrinho([]);
       setFormData({
         centroCustoId: '',
@@ -144,11 +157,20 @@ function SolicitarBrindes() {
       setShowForm(false);
     } catch (error: any) {
       console.error('Erro ao criar solicitação:', error);
-      alert(error.response?.data?.error || 'Erro ao criar solicitação');
+      showError(error.response?.data?.error || 'Erro ao criar solicitação');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const categorias = Array.from(new Set(brindes.map(b => b.categoria).filter(Boolean)));
+  const categorias = useMemo(
+    () => Array.from(new Set(brindes.map(b => b.categoria).filter(Boolean))),
+    [brindes]
+  );
+
+  if (loading && brindes.length === 0) {
+    return <Loading fullscreen message="Carregando brindes..." />;
+  }
 
   return (
     <div className="solicitar-brindes">
@@ -159,6 +181,7 @@ function SolicitarBrindes() {
             className="btn-carrinho" 
             onClick={() => setShowForm(true)}
             disabled={carrinho.length === 0}
+            aria-label={`Carrinho com ${carrinho.length} itens`}
           >
             🛒 Carrinho ({carrinho.length}) - R$ {calcularTotal().toLocaleString('pt-BR', {
               minimumFractionDigits: 2,
@@ -176,11 +199,13 @@ function SolicitarBrindes() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="search-input"
+          aria-label="Buscar brindes"
         />
         <select
           value={categoria}
           onChange={(e) => setCategoria(e.target.value)}
           className="filter-select"
+          aria-label="Filtrar por categoria"
         >
           <option value="">Todas as categorias</option>
           {categorias.map((cat) => (
@@ -193,68 +218,80 @@ function SolicitarBrindes() {
 
       {/* Catálogo de Brindes */}
       {loading ? (
-        <div className="loading">Carregando...</div>
+        <Loading message="Carregando..." />
+      ) : brindes.length === 0 ? (
+        <div className="empty-state">Nenhum brinde encontrado</div>
       ) : (
         <div className="catalogo-grid">
-          {brindes.map((brinde) => (
-            <div key={brinde.id} className="brinde-card-catalogo">
-              {brinde.fotoUrl && (
-                <div className="brinde-foto">
-                  <img 
-                    src={`http://localhost:3001${brinde.fotoUrl}`} 
-                    alt={brinde.nome}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
+          {brindes.map((brinde) => {
+            const imageUrl = getImageUrl(brinde.fotoUrl);
+            return (
+              <div key={brinde.id} className="brinde-card-catalogo">
+                {imageUrl && (
+                  <div className="brinde-foto">
+                    <img 
+                      src={imageUrl} 
+                      alt={brinde.nome}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="brinde-info-catalogo">
+                  <h3>{brinde.nome}</h3>
+                  {brinde.codigo && <span className="codigo-badge">{brinde.codigo}</span>}
+                  {brinde.categoria && <span className="categoria-badge">{brinde.categoria}</span>}
+                  <div className="info-rapida">
+                    <span className="estoque">Estoque: {brinde.quantidade}</span>
+                    {brinde.valorUnitario && (
+                      <span className="preco">R$ {brinde.valorUnitario.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}</span>
+                    )}
+                  </div>
+                  <button
+                    className="btn-adicionar"
+                    onClick={() => {
+                      adicionarAoCarrinho(brinde);
+                      showSuccess(`${brinde.nome} adicionado ao carrinho!`);
                     }}
-                  />
-                </div>
-              )}
-              <div className="brinde-info-catalogo">
-                <h3>{brinde.nome}</h3>
-                {brinde.codigo && <span className="codigo-badge">{brinde.codigo}</span>}
-                {brinde.categoria && <span className="categoria-badge">{brinde.categoria}</span>}
-                <div className="info-rapida">
-                  <span className="estoque">Estoque: {brinde.quantidade}</span>
-                  {brinde.valorUnitario && (
-                    <span className="preco">R$ {brinde.valorUnitario.toLocaleString('pt-BR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}</span>
-                  )}
+                    disabled={brinde.quantidade === 0}
+                  >
+                    {brinde.quantidade === 0 ? 'Sem estoque' : '+ Adicionar'}
+                  </button>
                 </div>
                 <button
-                  className="btn-adicionar"
-                  onClick={() => adicionarAoCarrinho(brinde)}
-                  disabled={brinde.quantidade === 0}
+                  className="btn-detalhes"
+                  onClick={() => {
+                    setBrindeSelecionado(brinde);
+                    setShowModal(true);
+                  }}
                 >
-                  {brinde.quantidade === 0 ? 'Sem estoque' : '+ Adicionar'}
+                  Ver Detalhes
                 </button>
               </div>
-              <button
-                className="btn-detalhes"
-                onClick={() => {
-                  setBrindeSelecionado(brinde);
-                  setShowModal(true);
-                }}
-              >
-                Ver Detalhes
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Modal de Detalhes */}
-      {showModal && brindeSelecionado && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-detalhes" onClick={(e) => e.stopPropagation()}>
-            <button className="btn-fechar" onClick={() => setShowModal(false)}>×</button>
-            <h2>{brindeSelecionado.nome}</h2>
-            {brindeSelecionado.fotoUrl && (
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={brindeSelecionado?.nome}
+        size="medium"
+      >
+        {brindeSelecionado && (
+          <>
+            {getImageUrl(brindeSelecionado.fotoUrl) && (
               <img 
-                src={`http://localhost:3001${brindeSelecionado.fotoUrl}`}
+                src={getImageUrl(brindeSelecionado.fotoUrl)!}
                 alt={brindeSelecionado.nome}
                 className="foto-detalhes"
+                style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', marginBottom: '1rem' }}
               />
             )}
             <div className="detalhes-completos">
@@ -271,26 +308,31 @@ function SolicitarBrindes() {
               )}
               {brindeSelecionado.fornecedor && <p><strong>Fornecedor:</strong> {brindeSelecionado.fornecedor}</p>}
             </div>
-            <button
-              className="btn-adicionar-detalhes"
-              onClick={() => {
-                adicionarAoCarrinho(brindeSelecionado);
-                setShowModal(false);
-              }}
-              disabled={brindeSelecionado.quantidade === 0}
-            >
-              Adicionar ao Carrinho
-            </button>
-          </div>
-        </div>
-      )}
+            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+              <button
+                className="btn-adicionar-detalhes"
+                onClick={() => {
+                  adicionarAoCarrinho(brindeSelecionado);
+                  setShowModal(false);
+                  showSuccess(`${brindeSelecionado.nome} adicionado ao carrinho!`);
+                }}
+                disabled={brindeSelecionado.quantidade === 0}
+                style={{ flex: 1 }}
+              >
+                Adicionar ao Carrinho
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
 
       {/* Modal de Solicitação */}
-      {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal-form" onClick={(e) => e.stopPropagation()}>
-            <h2>Finalizar Solicitação</h2>
-            
+      <Modal
+        isOpen={showForm}
+        onClose={() => !submitting && setShowForm(false)}
+        title="Finalizar Solicitação"
+        size="large"
+      >
             <div className="carrinho-resumo">
               <h3>Itens no Carrinho ({carrinho.length})</h3>
               <ul className="carrinho-lista">
@@ -407,17 +449,20 @@ function SolicitarBrindes() {
               </div>
 
               <div className="form-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={() => setShowForm(false)}
+                  disabled={submitting}
+                >
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary">
-                  Enviar Solicitação
+                <button type="submit" className="btn-primary" disabled={submitting}>
+                  {submitting ? 'Enviando...' : 'Enviar Solicitação'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

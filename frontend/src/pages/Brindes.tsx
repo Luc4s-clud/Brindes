@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { brindesService, Brinde } from '../services/brindes.service';
+import { useToast } from '../contexts/ToastContext';
+import { Modal } from '../components/Modal';
+import { Loading } from '../components/Loading';
+import { debounce } from '../utils/debounce';
 import './Brindes.css';
 
 function Brindes() {
@@ -17,27 +21,32 @@ function Brindes() {
     valorUnitario: '',
     fornecedor: '',
   });
+  const { showSuccess, showError } = useToast();
+
+  // Debounce da busca
+  const debouncedLoadBrindes = useMemo(
+    () => debounce(async (searchTerm: string, categoriaFilter: string) => {
+      try {
+        setLoading(true);
+        const params: any = {};
+        if (searchTerm) params.search = searchTerm;
+        if (categoriaFilter) params.categoria = categoriaFilter;
+        
+        const data = await brindesService.getAll(params);
+        setBrindes(data);
+      } catch (error) {
+        console.error('Erro ao carregar brindes:', error);
+        showError('Erro ao carregar brindes');
+      } finally {
+        setLoading(false);
+      }
+    }, 300),
+    [showError]
+  );
 
   useEffect(() => {
-    loadBrindes();
-  }, [search, categoria]);
-
-  const loadBrindes = async () => {
-    try {
-      setLoading(true);
-      const params: any = {};
-      if (search) params.search = search;
-      if (categoria) params.categoria = categoria;
-      
-      const data = await brindesService.getAll(params);
-      setBrindes(data);
-    } catch (error) {
-      console.error('Erro ao carregar brindes:', error);
-      alert('Erro ao carregar brindes');
-    } finally {
-      setLoading(false);
-    }
-  };
+    debouncedLoadBrindes(search, categoria);
+  }, [search, categoria, debouncedLoadBrindes]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,11 +65,11 @@ function Brindes() {
       }
 
       resetForm();
-      loadBrindes();
-      alert(editing ? 'Brinde atualizado com sucesso!' : 'Brinde criado com sucesso!');
+      debouncedLoadBrindes(search, categoria);
+      showSuccess(editing ? 'Brinde atualizado com sucesso!' : 'Brinde criado com sucesso!');
     } catch (error: any) {
       console.error('Erro ao salvar brinde:', error);
-      alert(error.response?.data?.error || 'Erro ao salvar brinde');
+      showError(error.response?.data?.error || 'Erro ao salvar brinde');
     }
   };
 
@@ -82,11 +91,11 @@ function Brindes() {
 
     try {
       await brindesService.delete(id);
-      loadBrindes();
-      alert('Brinde excluído com sucesso!');
+      debouncedLoadBrindes(search, categoria);
+      showSuccess('Brinde excluído com sucesso!');
     } catch (error: any) {
       console.error('Erro ao excluir brinde:', error);
-      alert(error.response?.data?.error || 'Erro ao excluir brinde');
+      showError(error.response?.data?.error || 'Erro ao excluir brinde');
     }
   };
 
@@ -103,7 +112,14 @@ function Brindes() {
     setShowForm(false);
   };
 
-  const categorias = Array.from(new Set(brindes.map(b => b.categoria).filter(Boolean)));
+  const categorias = useMemo(
+    () => Array.from(new Set(brindes.map(b => b.categoria).filter(Boolean))),
+    [brindes]
+  );
+
+  if (loading && brindes.length === 0) {
+    return <Loading fullscreen message="Carregando brindes..." />;
+  }
 
   return (
     <div className="brindes-page">
@@ -114,10 +130,12 @@ function Brindes() {
         </button>
       </div>
 
-      {showForm && (
-        <div className="modal-overlay" onClick={resetForm}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>{editing ? 'Editar Brinde' : 'Novo Brinde'}</h2>
+      <Modal
+        isOpen={showForm}
+        onClose={resetForm}
+        title={editing ? 'Editar Brinde' : 'Novo Brinde'}
+        size="medium"
+      >
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label>Nome *</label>
@@ -196,9 +214,7 @@ function Brindes() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       <div className="filters">
         <input
@@ -223,7 +239,7 @@ function Brindes() {
       </div>
 
       {loading ? (
-        <div className="loading">Carregando...</div>
+        <Loading message="Carregando..." />
       ) : brindes.length === 0 ? (
         <div className="empty-state">Nenhum brinde encontrado</div>
       ) : (

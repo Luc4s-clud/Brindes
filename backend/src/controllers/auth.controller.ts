@@ -15,9 +15,20 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email e senha são obrigatórios' });
     }
 
-    const usuario = await prisma.usuario.findUnique({
-      where: { email },
-    });
+    // Buscar usuário (Prisma conecta automaticamente)
+    let usuario;
+    try {
+      usuario = await prisma.usuario.findUnique({
+        where: { email },
+      });
+    } catch (dbError: any) {
+      console.error('❌ Erro de conexão com banco de dados:', dbError.message);
+      console.error('Stack:', dbError.stack);
+      return res.status(500).json({ 
+        error: 'Erro de conexão com o banco de dados',
+        details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+      });
+    }
 
     if (!usuario) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -27,17 +38,44 @@ export const login = async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Usuário inativo' });
     }
 
-    const senhaValida = await bcrypt.compare(senha, usuario.senha);
+    // Verificar se a senha está hasheada
+    if (!usuario.senha || !usuario.senha.startsWith('$2')) {
+      console.error('⚠️ Senha do usuário não está hasheada corretamente');
+      return res.status(500).json({ 
+        error: 'Erro de configuração: senha inválida',
+        details: process.env.NODE_ENV === 'development' ? 'Senha não está hasheada' : undefined
+      });
+    }
+
+    let senhaValida = false;
+    try {
+      senhaValida = await bcrypt.compare(senha, usuario.senha);
+    } catch (bcryptError: any) {
+      console.error('❌ Erro ao comparar senha:', bcryptError.message);
+      return res.status(500).json({ 
+        error: 'Erro ao validar senha',
+        details: process.env.NODE_ENV === 'development' ? bcryptError.message : undefined
+      });
+    }
 
     if (!senhaValida) {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    const token = jwt.sign(
-      { userId: usuario.id, perfil: usuario.perfil },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN } as SignOptions
-    );
+    let token: string;
+    try {
+      token = jwt.sign(
+        { userId: usuario.id, perfil: usuario.perfil },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN } as SignOptions
+      );
+    } catch (jwtError: any) {
+      console.error('❌ Erro ao gerar token JWT:', jwtError.message);
+      return res.status(500).json({ 
+        error: 'Erro ao gerar token de autenticação',
+        details: process.env.NODE_ENV === 'development' ? jwtError.message : undefined
+      });
+    }
 
     res.json({
       token,
@@ -50,7 +88,13 @@ export const login = async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Erro no login:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 

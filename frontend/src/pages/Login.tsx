@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import './Login.css';
 
 function Login() {
@@ -9,6 +10,7 @@ function Login() {
   const [erro, setErro] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const { showError, showSuccess } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -18,9 +20,12 @@ function Login() {
 
     try {
       await login(email, senha);
+      showSuccess('Login realizado com sucesso!');
       navigate('/');
     } catch (error: any) {
-      setErro(error.response?.data?.error || 'Erro ao fazer login');
+      const errorMessage = error.response?.data?.error || 'Erro ao fazer login';
+      setErro(errorMessage);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
