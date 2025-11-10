@@ -3,11 +3,11 @@ import bcrypt from 'bcrypt';
 
 async function createAdmin() {
   try {
-    const email = process.argv[2] || 'admin@brindes.com';
-    const senha = process.argv[3] || 'admin123';
-    const nome = process.argv[4] || 'Administrador';
+    const email = process.argv[2] || 'lucasrodrigues3210@gmail.com';
+    const senha = process.argv[3] || 'Luc@8428';
+    const nome = process.argv[4] || 'Lucas Rodrigues';
 
-    console.log('🔐 Criando usuário administrador...\n');
+    console.log('🔐 Criando usuário ${nome}...\n');
 
     // Verificar se já existe
     const existe = await prisma.usuario.findUnique({
