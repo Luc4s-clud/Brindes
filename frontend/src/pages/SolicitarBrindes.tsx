@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { brindesService, Brinde } from '../services/brindes.service';
 import { centrosCustoService, CentroCusto } from '../services/centros-custo.service';
 import { solicitacoesService, ItemSolicitacao, CreateSolicitacaoData } from '../services/solicitacoes.service';

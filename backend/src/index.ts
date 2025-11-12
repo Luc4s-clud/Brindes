@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import cors, { CorsOptions } from 'cors';
 import dotenv from 'dotenv';
 import brindesRoutes from './routes/brindes.routes';
 import categoriasRoutes from './routes/categorias.routes';
@@ -19,11 +19,37 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middlewares
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*', // Configure a URL do seu frontend na Hostinger
+const allowedOriginsEnv = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
+const allowedOrigins = allowedOriginsEnv
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+const allowLocalOrigins = process.env.NODE_ENV !== 'production';
+
+const corsOptions: CorsOptions = {
+  origin(origin, callback) {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    if (
+      allowLocalOrigins &&
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  },
   credentials: true,
-}));
+};
+
+// Middlewares
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
