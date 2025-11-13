@@ -35,10 +35,23 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const allowedOriginsEnv = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
-const allowedOrigins = allowedOriginsEnv
+const envOrigins = allowedOriginsEnv
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
+
+const defaultLocalOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:4173',
+  'http://localhost:4174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:4173',
+  'http://127.0.0.1:4174',
+];
+
+const allowedOrigins = Array.from(new Set([...envOrigins, ...defaultLocalOrigins]));
 const allowLocalOrigins = process.env.NODE_ENV !== 'production';
 
 const corsOptions: CorsOptions = {
