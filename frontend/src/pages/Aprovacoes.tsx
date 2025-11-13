@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { solicitacoesService, Solicitacao } from '../services/solicitacoes.service';
-import { aprovacoesService } from '../services/aprovacoes.service';
+import { Solicitacao, ItemEntregaPayload } from '../services/solicitacoes.service';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSolicitacoesQuery } from '../features/solicitacoes/api/useSolicitacoesQuery';
+import { useAprovarSolicitacaoMutation } from '../features/aprovacoes/api/useAprovarSolicitacaoMutation';
+import { useRejeitarSolicitacaoMutation } from '../features/aprovacoes/api/useRejeitarSolicitacaoMutation';
+import { useRegistrarEntregaMutation } from '../features/solicitacoes/api/useRegistrarEntregaMutation';
 import './Aprovacoes.css';
 
 type FiltroStatus =
@@ -56,12 +59,31 @@ interface ModalRejeicaoState {
   motivo: string;
 }
 
+interface ModalEntregaItem {
+  itemId: number;
+  nome: string;
+  quantidadeSolicitada: number;
+  quantidadeEntregue: number;
+}
+
+interface ModalEntregaState {
+  aberta: boolean;
+  solicitacao: Solicitacao | null;
+  dataEntrega: string;
+  observacao: string;
+  itens: ModalEntregaItem[];
+}
+
+const formatDateTimeInput = (value: Date | string) => {
+  const date = value instanceof Date ? value : new Date(value);
+  const iso = date.toISOString();
+  return iso.slice(0, 16);
+};
+
 function Aprovacoes() {
   const { showError, showSuccess } = useToast();
   const { usuario } = useAuth();
 
-  const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('PENDENTE');
   const [solicitacaoSelecionada, setSolicitacaoSelecionada] = useState<Solicitacao | null>(null);
   const [modalRejeicao, setModalRejeicao] = useState<ModalRejeicaoState>({
@@ -69,33 +91,39 @@ function Aprovacoes() {
     solicitacao: null,
     motivo: '',
   });
+  const [processing, setProcessing] = useState<{
+    aprovando?: number | null;
+    rejeitando?: number | null;
+    entregando?: number | null;
+  }>({});
+  const [modalEntrega, setModalEntrega] = useState<ModalEntregaState>({
+    aberta: false,
+    solicitacao: null,
+    dataEntrega: formatDateTimeInput(new Date()),
+    observacao: '',
+    itens: [],
+  });
 
-  useEffect(() => {
-    carregarSolicitacoes();
+  const filtros = useMemo(() => {
+    if (!filtroStatus || filtroStatus === 'TODAS') return {};
+    return { status: filtroStatus };
   }, [filtroStatus]);
 
-  const carregarSolicitacoes = async () => {
-    try {
-      setLoading(true);
-      const params =
-        filtroStatus && filtroStatus !== 'TODAS'
-          ? { status: filtroStatus }
-          : undefined;
+  const solicitacoesQuery = useSolicitacoesQuery(filtros);
 
-      const data = await solicitacoesService.getAll(params);
-      setSolicitacoes(data);
-    } catch (error: any) {
-      console.error('[APROVACAO] Falha ao buscar solicitações', error);
+  useEffect(() => {
+    if (solicitacoesQuery.error) {
+      console.error('[APROVACAO] Falha ao buscar solicitações', solicitacoesQuery.error);
+      const error: any = solicitacoesQuery.error;
       showError(
         error?.response?.data?.error ||
           'Não foi possível carregar as solicitações. Tente novamente.',
       );
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [solicitacoesQuery.error, showError]);
 
-  const listaFiltrada = useMemo(() => solicitacoes, [solicitacoes]);
+  const solicitacoes = solicitacoesQuery.data ?? [];
+  const loading = solicitacoesQuery.isLoading;
 
   const totalPendentes = useMemo(
     () => solicitacoes.filter((s) => s.status === 'PENDENTE').length,
@@ -108,14 +136,25 @@ function Aprovacoes() {
     );
   };
 
+  const aprovarMutation = useAprovarSolicitacaoMutation();
+  const rejeitarMutation = useRejeitarSolicitacaoMutation();
+  const registrarEntregaMutation = useRegistrarEntregaMutation();
+
+  const isConfirmingEntrega =
+    modalEntrega.aberta && modalEntrega.solicitacao
+      ? processing.entregando === modalEntrega.solicitacao.id
+      : false;
+
   const aprovarSolicitacao = async (solicitacao: Solicitacao) => {
+    setProcessing((prev) => ({ ...prev, aprovando: solicitacao.id }));
     try {
-      await aprovacoesService.aprovar(solicitacao.id);
+      await aprovarMutation.mutateAsync(solicitacao.id);
       showSuccess(`Solicitação ${solicitacao.numeroSolicitacao} aprovada com sucesso!`);
-      await carregarSolicitacoes();
     } catch (error: any) {
       console.error('[APROVACAO] Erro ao aprovar', error);
       showError(error?.response?.data?.error || 'Erro ao aprovar solicitação.');
+    } finally {
+      setProcessing((prev) => ({ ...prev, aprovando: null }));
     }
   };
 
@@ -137,18 +176,21 @@ function Aprovacoes() {
       return;
     }
 
+    setProcessing((prev) => ({ ...prev, rejeitando: modalRejeicao.solicitacao?.id || null }));
     try {
-      await aprovacoesService.rejeitar(modalRejeicao.solicitacao.id, {
+      await rejeitarMutation.mutateAsync({
+        solicitacaoId: modalRejeicao.solicitacao.id,
         observacao: modalRejeicao.motivo.trim(),
       });
       showSuccess(
         `Solicitação ${modalRejeicao.solicitacao.numeroSolicitacao} rejeitada com sucesso.`,
       );
       fecharModalRejeicao();
-      await carregarSolicitacoes();
     } catch (error: any) {
       console.error('[APROVACAO] Erro ao rejeitar', error);
       showError(error?.response?.data?.error || 'Erro ao rejeitar solicitação.');
+    } finally {
+      setProcessing((prev) => ({ ...prev, rejeitando: null }));
     }
   };
 
@@ -158,6 +200,78 @@ function Aprovacoes() {
       solicitacao: null,
       motivo: '',
     });
+  };
+
+  const abrirModalEntrega = (solicitacao: Solicitacao) => {
+    setModalEntrega({
+      aberta: true,
+      solicitacao,
+      dataEntrega: formatDateTimeInput(new Date()),
+      observacao: solicitacao.observacoes || '',
+      itens:
+        solicitacao.itens?.map((item) => ({
+          itemId: item.id!,
+          nome: item.brinde?.nome || 'Brinde',
+          quantidadeSolicitada: item.quantidade,
+          quantidadeEntregue: item.quantidadeEntregue ?? item.quantidade,
+        })) ?? [],
+    });
+  };
+
+  const atualizarQuantidadeEntrega = (itemId: number, quantidade: number) => {
+    setModalEntrega((prev) => ({
+      ...prev,
+      itens: prev.itens.map((item) =>
+        item.itemId === itemId
+          ? {
+              ...item,
+              quantidadeEntregue: quantidade,
+            }
+          : item,
+      ),
+    }));
+  };
+
+  const fecharModalEntrega = () => {
+    setModalEntrega({
+      aberta: false,
+      solicitacao: null,
+      dataEntrega: formatDateTimeInput(new Date()),
+      observacao: '',
+      itens: [],
+    });
+  };
+
+  const confirmarEntrega = async () => {
+    if (!modalEntrega.solicitacao) return;
+    const solicitacaoAtual = modalEntrega.solicitacao;
+
+    setProcessing((prev) => ({ ...prev, entregando: solicitacaoAtual.id }));
+    try {
+      const itensPayload: ItemEntregaPayload[] = modalEntrega.itens.map((item) => ({
+        itemId: item.itemId,
+        quantidadeEntregue: item.quantidadeEntregue,
+      }));
+
+      await registrarEntregaMutation.mutateAsync({
+        solicitacaoId: solicitacaoAtual.id,
+        payload: {
+          dataEntrega: modalEntrega.dataEntrega
+            ? new Date(modalEntrega.dataEntrega).toISOString()
+            : undefined,
+          observacaoEntrega: modalEntrega.observacao,
+          itensEntregues: itensPayload,
+        },
+      });
+
+      showSuccess('Entrega registrada com sucesso!');
+      fecharModalEntrega();
+    } catch (error: any) {
+      console.error('[APROVACAO] Erro ao registrar entrega', error);
+      showError(error?.response?.data?.error || 'Erro ao registrar entrega.');
+    } finally {
+      setProcessing((prev) => ({ ...prev, entregando: null }));
+    }
   };
 
   return (
@@ -195,13 +309,13 @@ function Aprovacoes() {
 
       {loading ? (
         <div className="loading">Carregando solicitações...</div>
-      ) : listaFiltrada.length === 0 ? (
+      ) : solicitacoes.length === 0 ? (
         <div className="empty-state">
           Nenhuma solicitação encontrada para o filtro selecionado.
         </div>
       ) : (
         <div className="solicitacoes-grid">
-          {listaFiltrada.map((solicitacao) => {
+          {solicitacoes.map((solicitacao) => {
             const isSelecionada = solicitacaoSelecionada?.id === solicitacao.id;
             const badgeClass = statusBadgeClass[solicitacao.status] || 'badge-pendente';
 
@@ -288,6 +402,11 @@ function Aprovacoes() {
                                 <span className="item-quantidade">
                                   Quantidade: {item.quantidade}
                                 </span>
+                                {typeof item.quantidadeEntregue === 'number' && (
+                                  <span className="item-quantidade-entregue">
+                                    Entregue: {item.quantidadeEntregue}
+                                  </span>
+                                )}
                               </div>
                               <div className="item-valores">
                                 {formatCurrency(item.valorUnitario) && (
@@ -348,14 +467,32 @@ function Aprovacoes() {
                         <button
                           className="btn-aprovar"
                           onClick={() => aprovarSolicitacao(solicitacao)}
+                          disabled={processing.aprovando === solicitacao.id}
                         >
-                          Aprovar solicitação
+                          {processing.aprovando === solicitacao.id
+                            ? 'Aprovando...'
+                            : 'Aprovar solicitação'}
                         </button>
                         <button
                           className="btn-rejeitar"
                           onClick={() => solicitarRejeicao(solicitacao)}
+                          disabled={processing.rejeitando === solicitacao.id}
                         >
-                          Rejeitar
+                          {processing.rejeitando === solicitacao.id ? 'Rejeitando...' : 'Rejeitar'}
+                        </button>
+                      </div>
+                    )}
+
+                    {solicitacao.status === 'APROVADA' && (
+                      <div className="acoes-aprovacao">
+                        <button
+                          className="btn-entregar"
+                          onClick={() => abrirModalEntrega(solicitacao)}
+                          disabled={processing.entregando === solicitacao.id}
+                        >
+                          {processing.entregando === solicitacao.id
+                            ? 'Registrando...'
+                            : 'Registrar entrega'}
                         </button>
                       </div>
                     )}
@@ -390,8 +527,104 @@ function Aprovacoes() {
               <button type="button" className="btn-secondary" onClick={fecharModalRejeicao}>
                 Cancelar
               </button>
-              <button type="button" className="btn-danger" onClick={confirmarRejeicao}>
-                Confirmar rejeição
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={confirmarRejeicao}
+                disabled={
+                  !!modalRejeicao.solicitacao &&
+                  processing.rejeitando === modalRejeicao.solicitacao.id
+                }
+              >
+                {processing.rejeitando === modalRejeicao.solicitacao?.id
+                  ? 'Rejeitando...'
+                  : 'Confirmar rejeição'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalEntrega.aberta && modalEntrega.solicitacao && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-content entrega-modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Registrar entrega</h2>
+            <p className="modal-descricao">
+              Confirme as quantidades entregues para a solicitação{' '}
+              <strong>{modalEntrega.solicitacao.numeroSolicitacao}</strong>.
+            </p>
+
+            <div className="modal-section">
+              <label htmlFor="data-entrega">Data da entrega</label>
+              <input
+                id="data-entrega"
+                type="datetime-local"
+                value={modalEntrega.dataEntrega}
+                onChange={(event) =>
+                  setModalEntrega((prev) => ({
+                    ...prev,
+                    dataEntrega: event.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="modal-section">
+              <label>Itens entregues</label>
+              <div className="entrega-itens">
+                {modalEntrega.itens.map((item) => (
+                  <div key={item.itemId} className="entrega-item">
+                    <div>
+                      <strong>{item.nome}</strong>
+                      <span className="entrega-item-solicitado">
+                        Solicitado: {item.quantidadeSolicitada}
+                      </span>
+                    </div>
+                    <div className="entrega-item-input">
+                      <label htmlFor={`entrega-${item.itemId}`}>Entregue</label>
+                      <input
+                        id={`entrega-${item.itemId}`}
+                        type="number"
+                        min={0}
+                        max={item.quantidadeSolicitada}
+                        value={item.quantidadeEntregue}
+                        onChange={(event) =>
+                          atualizarQuantidadeEntrega(item.itemId, Number(event.target.value))
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="modal-section">
+              <label htmlFor="observacao-entrega">Observações</label>
+              <textarea
+                id="observacao-entrega"
+                rows={3}
+                value={modalEntrega.observacao}
+                onChange={(event) =>
+                  setModalEntrega((prev) => ({
+                    ...prev,
+                    observacao: event.target.value,
+                  }))
+                }
+                placeholder="Informações adicionais da entrega (opcional)"
+              />
+            </div>
+
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={fecharModalEntrega}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-aprovar"
+                onClick={confirmarEntrega}
+                disabled={isConfirmingEntrega}
+              >
+                {isConfirmingEntrega ? 'Salvando...' : 'Confirmar entrega'}
               </button>
             </div>
           </div>

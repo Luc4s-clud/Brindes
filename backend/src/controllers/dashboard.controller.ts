@@ -4,175 +4,204 @@ import { StatusSolicitacao } from '@prisma/client';
 
 export const getEstatisticas = async (req: Request, res: Response) => {
   try {
-    // Estatísticas de brindes
-    const totalBrindes = await prisma.brinde.count({
-      where: { ativo: true },
-    });
+    const agora = new Date();
+    const daquiUmMes = new Date(agora);
+    daquiUmMes.setMonth(daquiUmMes.getMonth() + 1);
 
-    const brindesComEstoque = await prisma.brinde.count({
-      where: {
-        ativo: true,
-        quantidade: { gt: 0 },
-      },
-    });
-
-    // Buscar brindes com estoque baixo (usando query raw para comparar)
-    const brindesComEstoqueMinimo = await prisma.brinde.findMany({
-      where: {
-        ativo: true,
-        estoqueMinimo: { not: null },
-      },
-      select: {
-        id: true,
-        quantidade: true,
-        estoqueMinimo: true,
-      },
-    });
-
-    const brindesEstoqueBaixo = brindesComEstoqueMinimo.filter(
-      b => b.estoqueMinimo && b.quantidade <= b.estoqueMinimo
-    ).length + await prisma.brinde.count({
-      where: {
-        ativo: true,
-        quantidade: 0,
-        estoqueMinimo: null,
-      },
-    });
-
-    const brindesVencendo = await prisma.brinde.count({
-      where: {
-        ativo: true,
-        validade: {
-          lte: new Date(new Date().setMonth(new Date().getMonth() + 1)),
-          gte: new Date(),
+    const [
+      totalBrindes,
+      brindesComEstoque,
+      brindesComEstoqueMinimo,
+      brindesSemEstoqueSemMinimo,
+      brindesVencendo,
+      valorTotalEstoqueRaw,
+      totalSolicitacoes,
+      solicitacoesPendentes,
+      solicitacoesAprovadas,
+      solicitacoesEntregues,
+      valorTotalAprovado,
+      valorTotalEntregue,
+      brindesMaisSolicitados,
+      topSolicitantes,
+      consumoPorCentroCusto,
+    ] = await Promise.all([
+      prisma.brinde.count({
+        where: { ativo: true },
+      }),
+      prisma.brinde.count({
+        where: {
+          ativo: true,
+          quantidade: { gt: 0 },
         },
-      },
-    });
-
-    // Remover agregação não utilizada
-
-    const valorTotalEstoqueRaw = await prisma.$queryRaw<Array<{ total: bigint }>>`
-      SELECT SUM(quantidade * COALESCE(valorUnitario, 0)) as total
-      FROM brindes
-      WHERE ativo = true
-    `;
-    const valorTotalEstoque = valorTotalEstoqueRaw[0]?.total ? Number(valorTotalEstoqueRaw[0].total) : 0;
-
-    // Estatísticas de solicitações
-    const totalSolicitacoes = await prisma.solicitacao.count();
-    const solicitacoesPendentes = await prisma.solicitacao.count({
-      where: { status: StatusSolicitacao.PENDENTE },
-    });
-    const solicitacoesAprovadas = await prisma.solicitacao.count({
-      where: { status: StatusSolicitacao.APROVADA },
-    });
-    const solicitacoesEntregues = await prisma.solicitacao.count({
-      where: { status: StatusSolicitacao.ENTREGUE },
-    });
-
-    // Valor total de solicitações aprovadas
-    const valorTotalAprovado = await prisma.solicitacao.aggregate({
-      where: { status: StatusSolicitacao.APROVADA },
-      _sum: {
-        valorTotal: true,
-      },
-    });
-
-    const valorTotalEntregue = await prisma.solicitacao.aggregate({
-      where: { status: StatusSolicitacao.ENTREGUE },
-      _sum: {
-        valorTotal: true,
-      },
-    });
-
-    // Top 5 brindes mais solicitados
-    const brindesMaisSolicitados = await prisma.itemSolicitacao.groupBy({
-      by: ['brindeId'],
-      _sum: {
-        quantidade: true,
-      },
-      orderBy: {
+      }),
+      prisma.brinde.findMany({
+        where: {
+          ativo: true,
+          estoqueMinimo: { not: null },
+        },
+        select: {
+          id: true,
+          quantidade: true,
+          estoqueMinimo: true,
+        },
+      }),
+      prisma.brinde.count({
+        where: {
+          ativo: true,
+          quantidade: 0,
+          estoqueMinimo: null,
+        },
+      }),
+      prisma.brinde.count({
+        where: {
+          ativo: true,
+          validade: {
+            lte: daquiUmMes,
+            gte: agora,
+          },
+        },
+      }),
+      prisma.$queryRaw<Array<{ total: bigint }>>`
+        SELECT SUM(quantidade * COALESCE(valorUnitario, 0)) as total
+        FROM brindes
+        WHERE ativo = true
+      `,
+      prisma.solicitacao.count(),
+      prisma.solicitacao.count({
+        where: { status: StatusSolicitacao.PENDENTE },
+      }),
+      prisma.solicitacao.count({
+        where: { status: StatusSolicitacao.APROVADA },
+      }),
+      prisma.solicitacao.count({
+        where: { status: StatusSolicitacao.ENTREGUE },
+      }),
+      prisma.solicitacao.aggregate({
+        where: { status: StatusSolicitacao.APROVADA },
         _sum: {
-          quantidade: 'desc',
+          valorTotal: true,
         },
-      },
-      take: 5,
-    });
-
-    const brindesMaisSolicitadosDetalhes = await Promise.all(
-      brindesMaisSolicitados.map(async (item) => {
-        const brinde = await prisma.brinde.findUnique({
-          where: { id: item.brindeId },
-        });
-        return {
-          brinde: {
-            id: brinde?.id,
-            nome: brinde?.nome,
-            codigo: brinde?.codigo,
+      }),
+      prisma.solicitacao.aggregate({
+        where: { status: StatusSolicitacao.ENTREGUE },
+        _sum: {
+          valorTotal: true,
+        },
+      }),
+      prisma.itemSolicitacao.groupBy({
+        by: ['brindeId'],
+        _sum: {
+          quantidade: true,
+        },
+        orderBy: {
+          _sum: {
+            quantidade: 'desc',
           },
-          quantidadeTotal: item._sum.quantidade,
-        };
-      })
-    );
-
-    // Top 5 solicitantes
-    const topSolicitantes = await prisma.solicitacao.groupBy({
-      by: ['solicitanteId'],
-      _count: {
-        id: true,
-      },
-      orderBy: {
+        },
+        take: 5,
+      }),
+      prisma.solicitacao.groupBy({
+        by: ['solicitanteId'],
         _count: {
-          id: 'desc',
+          id: true,
         },
-      },
-      take: 5,
-    });
-
-    const topSolicitantesDetalhes = await Promise.all(
-      topSolicitantes.map(async (item) => {
-        const usuario = await prisma.usuario.findUnique({
-          where: { id: item.solicitanteId },
-        });
-        return {
-          usuario: {
-            id: usuario?.id,
-            nome: usuario?.nome,
-            email: usuario?.email,
+        orderBy: {
+          _count: {
+            id: 'desc',
           },
-          totalSolicitacoes: item._count.id,
-        };
-      })
-    );
-
-    // Consumo por centro de custo
-    const consumoPorCentroCusto = await prisma.solicitacao.groupBy({
-      by: ['centroCustoId'],
-      _sum: {
-        valorTotal: true,
-      },
-      where: {
-        status: {
-          in: [StatusSolicitacao.APROVADA, StatusSolicitacao.ENTREGUE],
         },
-      },
-    });
-
-    const consumoPorCentroCustoDetalhes = await Promise.all(
-      consumoPorCentroCusto.map(async (item) => {
-        const centroCusto = await prisma.centroCusto.findUnique({
-          where: { id: item.centroCustoId },
-        });
-        return {
-          centroCusto: {
-            id: centroCusto?.id,
-            nome: centroCusto?.nome,
-            setor: centroCusto?.setor,
+        take: 5,
+      }),
+      prisma.solicitacao.groupBy({
+        by: ['centroCustoId'],
+        _sum: {
+          valorTotal: true,
+        },
+        where: {
+          status: {
+            in: [StatusSolicitacao.APROVADA, StatusSolicitacao.ENTREGUE],
           },
-          valorTotal: item._sum.valorTotal,
-        };
-      })
-    );
+        },
+      }),
+    ]);
+
+    const brindesEstoqueBaixo =
+      brindesComEstoqueMinimo.filter(
+        (b) => b.estoqueMinimo !== null && b.quantidade <= (b.estoqueMinimo ?? 0),
+      ).length + brindesSemEstoqueSemMinimo;
+
+    const valorTotalEstoque =
+      (valorTotalEstoqueRaw as Array<{ total: bigint }>)[0]?.total
+        ? Number((valorTotalEstoqueRaw as Array<{ total: bigint }>)[0].total)
+        : 0;
+
+    const brindeIds = brindesMaisSolicitados.map((item) => item.brindeId).filter(Boolean);
+    const solicitanteIds = topSolicitantes.map((item) => item.solicitanteId).filter(Boolean);
+    const centrosCustoIds = consumoPorCentroCusto.map((item) => item.centroCustoId).filter(Boolean);
+
+    const [brindesDetalhes, usuariosDetalhes, centrosDetalhes] = await Promise.all([
+      brindeIds.length
+        ? prisma.brinde.findMany({
+            where: { id: { in: brindeIds } },
+            select: {
+              id: true,
+              nome: true,
+              codigo: true,
+            },
+          })
+        : [],
+      solicitanteIds.length
+        ? prisma.usuario.findMany({
+            where: { id: { in: solicitanteIds } },
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          })
+        : [],
+      centrosCustoIds.length
+        ? prisma.centroCusto.findMany({
+            where: { id: { in: centrosCustoIds } },
+            select: {
+              id: true,
+              nome: true,
+              setor: true,
+            },
+          })
+        : [],
+    ]);
+
+    const brindesMap = new Map(brindesDetalhes.map((brinde) => [brinde.id, brinde]));
+    const usuariosMap = new Map(usuariosDetalhes.map((usuario) => [usuario.id, usuario]));
+    const centrosMap = new Map(centrosDetalhes.map((centro) => [centro.id, centro]));
+
+    const brindesMaisSolicitadosDetalhes = brindesMaisSolicitados.map((item) => ({
+      brinde: {
+        id: item.brindeId,
+        nome: brindesMap.get(item.brindeId)?.nome,
+        codigo: brindesMap.get(item.brindeId)?.codigo,
+      },
+      quantidadeTotal: item._sum.quantidade,
+    }));
+
+    const topSolicitantesDetalhes = topSolicitantes.map((item) => ({
+      usuario: {
+        id: item.solicitanteId,
+        nome: usuariosMap.get(item.solicitanteId)?.nome,
+        email: usuariosMap.get(item.solicitanteId)?.email,
+      },
+      totalSolicitacoes: item._count.id,
+    }));
+
+    const consumoPorCentroCustoDetalhes = consumoPorCentroCusto.map((item) => ({
+      centroCusto: {
+        id: item.centroCustoId,
+        nome: centrosMap.get(item.centroCustoId)?.nome,
+        setor: centrosMap.get(item.centroCustoId)?.setor,
+      },
+      valorTotal: item._sum.valorTotal,
+    }));
 
     res.json({
       brindes: {
@@ -180,15 +209,15 @@ export const getEstatisticas = async (req: Request, res: Response) => {
         comEstoque: brindesComEstoque,
         estoqueBaixo: brindesEstoqueBaixo,
         vencendo: brindesVencendo,
-        valorTotalEstoque: valorTotalEstoque,
+        valorTotalEstoque,
       },
       solicitacoes: {
         total: totalSolicitacoes,
         pendentes: solicitacoesPendentes,
         aprovadas: solicitacoesAprovadas,
         entregues: solicitacoesEntregues,
-        valorTotalAprovado: valorTotalAprovado,
-        valorTotalEntregue: valorTotalEntregue,
+        valorTotalAprovado,
+        valorTotalEntregue,
       },
       rankings: {
         brindesMaisSolicitados: brindesMaisSolicitadosDetalhes,

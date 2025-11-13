@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../utils/prisma';
 import { StatusSolicitacao } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { SolicitacaoService } from '../services/solicitacao.service';
 
 // Gerar número único de solicitação
 function gerarNumeroSolicitacao(): string {
@@ -13,59 +14,13 @@ function gerarNumeroSolicitacao(): string {
 export const getAllSolicitacoes = async (req: AuthRequest, res: Response) => {
   try {
     const { status, centroCustoId, solicitanteId } = req.query;
-    const userId = req.userId;
-    const userPerfil = req.userPerfil;
 
-    const where: any = {};
-
-    // Se não for Marketing ou Diretor, só ver suas próprias solicitações
-    if (userPerfil !== 'MARKETING' && userPerfil !== 'DIRETOR') {
-      where.solicitanteId = userId;
-    }
-
-    if (status) {
-      where.status = status as StatusSolicitacao;
-    }
-
-    if (centroCustoId) {
-      where.centroCustoId = parseInt(centroCustoId as string);
-    }
-
-    if (solicitanteId && (userPerfil === 'MARKETING' || userPerfil === 'DIRETOR')) {
-      where.solicitanteId = parseInt(solicitanteId as string);
-    }
-
-    const solicitacoes = await prisma.solicitacao.findMany({
-      where,
-      include: {
-        solicitante: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-            perfil: true,
-          },
-        },
-        centroCusto: true,
-        itens: {
-          include: {
-            brinde: true,
-          },
-        },
-        aprovacoes: {
-          include: {
-            aprovador: {
-              select: {
-                id: true,
-                nome: true,
-                perfil: true,
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+    const solicitacoes = await SolicitacaoService.listarSolicitacoes({
+      status: status as string | undefined,
+      centroCustoId: centroCustoId ? parseInt(centroCustoId as string) : undefined,
+      solicitanteId: solicitanteId ? parseInt(solicitanteId as string) : undefined,
+      usuarioId: req.userId,
+      usuarioPerfil: req.userPerfil,
     });
 
     res.json(solicitacoes);
@@ -80,60 +35,21 @@ export const getSolicitacaoById = async (req: AuthRequest, res: Response) => {
     const userId = req.userId;
     const userPerfil = req.userPerfil;
 
-    const solicitacao = await prisma.solicitacao.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        solicitante: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-            perfil: true,
-          },
-        },
-        centroCusto: {
-          include: {
-            usuario: {
-              select: {
-                id: true,
-                nome: true,
-                email: true,
-              },
-            },
-          },
-        },
-        itens: {
-          include: {
-            brinde: true,
-          },
-        },
-        aprovacoes: {
-          include: {
-            aprovador: {
-              select: {
-                id: true,
-                nome: true,
-                perfil: true,
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
+    const solicitacao = await SolicitacaoService.obterSolicitacaoDetalhe(
+      parseInt(id),
+      userId,
+      userPerfil,
+    );
 
     if (!solicitacao) {
       return res.status(404).json({ error: 'Solicitação não encontrada' });
     }
 
-    // Verificar permissão
-    if (userPerfil !== 'MARKETING' && userPerfil !== 'DIRETOR' && solicitacao.solicitanteId !== userId) {
-      return res.status(403).json({ error: 'Acesso negado' });
-    }
-
     res.json(solicitacao);
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    const message = error.message === 'Acesso negado' ? error.message : 'Erro ao buscar solicitação';
+    const status = error.message === 'Acesso negado' ? 403 : 500;
+    res.status(status).json({ error: message });
   }
 };
 
@@ -369,6 +285,48 @@ export const cancelarSolicitacao = async (req: AuthRequest, res: Response) => {
 
     res.json(solicitacaoCancelada);
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const entregarSolicitacao = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { itensEntregues, dataEntrega, observacaoEntrega } = req.body ?? {};
+    const userPerfil = req.userPerfil;
+
+    if (userPerfil !== 'MARKETING' && userPerfil !== 'DIRETOR') {
+      return res.status(403).json({ error: 'Apenas Marketing ou Diretoria podem registrar entregas' });
+    }
+
+    try {
+      const solicitacaoAtualizada = await SolicitacaoService.registrarEntrega({
+        solicitacaoId: parseInt(id),
+        itensEntregues,
+        dataEntrega: dataEntrega ? new Date(dataEntrega) : undefined,
+        observacaoEntrega,
+      });
+
+      res.json(solicitacaoAtualizada);
+    } catch (error: any) {
+      if (error.message === 'Solicitação não encontrada') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (error.message?.includes('Apenas solicitações aprovadas')) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      if (error.message?.includes('Quantidade entregue')) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      throw error;
+    }
+  } catch (error: any) {
+    if (error.message?.includes('Quantidade entregue')) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
 };

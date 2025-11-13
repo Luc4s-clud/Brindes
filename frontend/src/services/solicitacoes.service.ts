@@ -4,6 +4,7 @@ export interface ItemSolicitacao {
   id?: number;
   brindeId: number;
   quantidade: number;
+  quantidadeEntregue?: number;
   valorUnitario?: number;
   observacao?: string;
   brinde?: any;
@@ -40,6 +41,17 @@ export interface CreateSolicitacaoData {
   itens: Omit<ItemSolicitacao, 'id' | 'brinde'>[];
 }
 
+export interface ItemEntregaPayload {
+  itemId: number;
+  quantidadeEntregue: number;
+}
+
+export interface EntregarSolicitacaoPayload {
+  itensEntregues?: ItemEntregaPayload[];
+  dataEntrega?: string;
+  observacaoEntrega?: string;
+}
+
 export const solicitacoesService = {
   getAll: async (params?: {
     status?: string;
@@ -67,6 +79,11 @@ export const solicitacoesService = {
 
   cancelar: async (id: number): Promise<Solicitacao> => {
     const response = await api.patch(`/solicitacoes/${id}/cancelar`);
+    return response.data;
+  },
+
+  entregar: async (id: number, data: EntregarSolicitacaoPayload = {}): Promise<Solicitacao> => {
+    const response = await api.patch(`/solicitacoes/${id}/entregar`, data);
     return response.data;
   },
 };

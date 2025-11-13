@@ -6,7 +6,7 @@ import { useToast } from '../contexts/ToastContext';
 import { Modal } from '../components/Modal';
 import { Loading } from '../components/Loading';
 import { debounce } from '../utils/debounce';
-import { getImageUrl } from '../utils/apiUrl';
+import BrindeThumbnail from '../components/BrindeThumbnail';
 import './SolicitarBrindes.css';
 
 function SolicitarBrindes() {
@@ -223,57 +223,55 @@ function SolicitarBrindes() {
         <div className="empty-state">Nenhum brinde encontrado</div>
       ) : (
         <div className="catalogo-grid">
-          {brindes.map((brinde) => {
-            const imageUrl = getImageUrl(brinde.fotoUrl);
-            return (
-              <div key={brinde.id} className="brinde-card-catalogo">
-                {imageUrl && (
-                  <div className="brinde-foto">
-                    <img 
-                      src={imageUrl} 
-                      alt={brinde.nome}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="brinde-info-catalogo">
-                  <h3>{brinde.nome}</h3>
-                  {brinde.codigo && <span className="codigo-badge">{brinde.codigo}</span>}
-                  {brinde.categoria && <span className="categoria-badge">{brinde.categoria}</span>}
-                  <div className="info-rapida">
-                    <span className="estoque">Estoque: {brinde.quantidade}</span>
-                    {brinde.valorUnitario && (
-                      <span className="preco">R$ {brinde.valorUnitario.toLocaleString('pt-BR', {
+          {brindes.map((brinde) => (
+            <div key={brinde.id} className="brinde-card-catalogo">
+              <div className="brinde-foto">
+                <BrindeThumbnail
+                  nome={brinde.nome}
+                  fotoUrl={brinde.fotoUrl}
+                  size="large"
+                  chavesAlternativas={[brinde.codigo, String(brinde.id)]}
+                />
+              </div>
+
+              <div className="brinde-info-catalogo">
+                <h3>{brinde.nome}</h3>
+                {brinde.codigo && <span className="codigo-badge">{brinde.codigo}</span>}
+                {brinde.categoria && <span className="categoria-badge">{brinde.categoria}</span>}
+                <div className="info-rapida">
+                  <span className="estoque">Estoque: {brinde.quantidade}</span>
+                  {brinde.valorUnitario && (
+                    <span className="preco">
+                      R$ {brinde.valorUnitario.toLocaleString('pt-BR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
-                      })}</span>
-                    )}
-                  </div>
-                  <button
-                    className="btn-adicionar"
-                    onClick={() => {
-                      adicionarAoCarrinho(brinde);
-                      showSuccess(`${brinde.nome} adicionado ao carrinho!`);
-                    }}
-                    disabled={brinde.quantidade === 0}
-                  >
-                    {brinde.quantidade === 0 ? 'Sem estoque' : '+ Adicionar'}
-                  </button>
+                      })}
+                    </span>
+                  )}
                 </div>
                 <button
-                  className="btn-detalhes"
+                  className="btn-adicionar"
                   onClick={() => {
-                    setBrindeSelecionado(brinde);
-                    setShowModal(true);
+                    adicionarAoCarrinho(brinde);
+                    showSuccess(`${brinde.nome} adicionado ao carrinho!`);
                   }}
+                  disabled={brinde.quantidade === 0}
                 >
-                  Ver Detalhes
+                  {brinde.quantidade === 0 ? 'Sem estoque' : '+ Adicionar'}
                 </button>
               </div>
-            );
-          })}
+
+              <button
+                className="btn-detalhes"
+                onClick={() => {
+                  setBrindeSelecionado(brinde);
+                  setShowModal(true);
+                }}
+              >
+                Ver Detalhes
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -286,14 +284,14 @@ function SolicitarBrindes() {
       >
         {brindeSelecionado && (
           <>
-            {getImageUrl(brindeSelecionado.fotoUrl) && (
-              <img 
-                src={getImageUrl(brindeSelecionado.fotoUrl)!}
-                alt={brindeSelecionado.nome}
-                className="foto-detalhes"
-                style={{ width: '100%', maxHeight: '300px', objectFit: 'contain', marginBottom: '1rem' }}
+            <div className="foto-detalhes">
+              <BrindeThumbnail
+                nome={brindeSelecionado.nome}
+                fotoUrl={brindeSelecionado.fotoUrl}
+                size="large"
+                chavesAlternativas={[brindeSelecionado.codigo, String(brindeSelecionado.id)]}
               />
-            )}
+            </div>
             <div className="detalhes-completos">
               {brindeSelecionado.codigo && <p><strong>Código:</strong> {brindeSelecionado.codigo}</p>}
               {brindeSelecionado.descricao && <p><strong>Descrição:</strong> {brindeSelecionado.descricao}</p>}
@@ -333,135 +331,141 @@ function SolicitarBrindes() {
         title="Finalizar Solicitação"
         size="large"
       >
-            <div className="carrinho-resumo">
-              <h3>Itens no Carrinho ({carrinho.length})</h3>
-              <ul className="carrinho-lista">
-                {carrinho.map((item) => (
-                  <li key={item.brindeId}>
-                    <div className="item-info">
-                      <span>{item.brinde.nome}</span>
-                      <div className="item-controles">
-                        <button
-                          onClick={() => atualizarQuantidade(item.brindeId, item.quantidade - 1)}
-                          className="btn-qtd"
-                        >
-                          -
-                        </button>
-                        <span>{item.quantidade}</span>
-                        <button
-                          onClick={() => atualizarQuantidade(item.brindeId, item.quantidade + 1)}
-                          className="btn-qtd"
-                          disabled={item.quantidade >= item.brinde.quantidade}
-                        >
-                          +
-                        </button>
-                        <span className="item-total">
-                          R$ {((item.valorUnitario || 0) * item.quantidade).toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </span>
-                        <button
-                          onClick={() => removerDoCarrinho(item.brindeId)}
-                          className="btn-remover"
-                        >
-                          ✕
-                        </button>
-                      </div>
+        <div className="modal-solicitacao">
+          <div className="carrinho-resumo">
+            <h3>Itens no Carrinho ({carrinho.length})</h3>
+            <ul className="carrinho-lista">
+              {carrinho.map((item) => (
+                <li key={item.brindeId}>
+                  <div className="item-info">
+                    <span>{item.brinde.nome}</span>
+                    <div className="item-controles">
+                      <button
+                        onClick={() => atualizarQuantidade(item.brindeId, item.quantidade - 1)}
+                        className="btn-qtd"
+                      >
+                        -
+                      </button>
+                      <span>{item.quantidade}</span>
+                      <button
+                        onClick={() => atualizarQuantidade(item.brindeId, item.quantidade + 1)}
+                        className="btn-qtd"
+                        disabled={item.quantidade >= item.brinde.quantidade}
+                      >
+                        +
+                      </button>
+                      <span className="item-total">
+                        R${' '}
+                        {((item.valorUnitario || 0) * item.quantidade).toLocaleString('pt-BR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                      <button
+                        onClick={() => removerDoCarrinho(item.brindeId)}
+                        className="btn-remover"
+                      >
+                        ✕
+                      </button>
                     </div>
-                  </li>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="total-carrinho">
+              <strong>
+                Total:{' '}
+                {calcularTotal().toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
+              </strong>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmitSolicitacao}>
+            <div className="form-group">
+              <label>Centro de Custo *</label>
+              <select
+                value={formData.centroCustoId}
+                onChange={(e) => setFormData({ ...formData, centroCustoId: e.target.value })}
+                required
+              >
+                <option value="">Selecione um centro de custo</option>
+                {centrosCusto.map((cc) => (
+                  <option key={cc.id} value={cc.id}>
+                    {cc.nome} {cc.setor && `(${cc.setor})`}
+                  </option>
                 ))}
-              </ul>
-              <div className="total-carrinho">
-                <strong>Total: R$ {calcularTotal().toLocaleString('pt-BR', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}</strong>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Justificativa *</label>
+              <textarea
+                value={formData.justificativa}
+                onChange={(e) => setFormData({ ...formData, justificativa: e.target.value })}
+                rows={3}
+                required
+                placeholder="Explique a necessidade dos brindes..."
+              />
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Finalidade</label>
+                <input
+                  type="text"
+                  value={formData.finalidade}
+                  onChange={(e) => setFormData({ ...formData, finalidade: e.target.value })}
+                  placeholder="Ex: Expodireto, Visita Técnica..."
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Prazo de Entrega</label>
+                <input
+                  type="date"
+                  value={formData.prazoEntrega}
+                  onChange={(e) => setFormData({ ...formData, prazoEntrega: e.target.value })}
+                />
               </div>
             </div>
 
-            <form onSubmit={handleSubmitSolicitacao}>
-              <div className="form-group">
-                <label>Centro de Custo *</label>
-                <select
-                  value={formData.centroCustoId}
-                  onChange={(e) => setFormData({ ...formData, centroCustoId: e.target.value })}
-                  required
-                >
-                  <option value="">Selecione um centro de custo</option>
-                  {centrosCusto.map((cc) => (
-                    <option key={cc.id} value={cc.id}>
-                      {cc.nome} {cc.setor && `(${cc.setor})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="form-group">
+              <label>Endereço de Entrega</label>
+              <textarea
+                value={formData.enderecoEntrega}
+                onChange={(e) => setFormData({ ...formData, enderecoEntrega: e.target.value })}
+                rows={2}
+                placeholder="Endereço completo para entrega..."
+              />
+            </div>
 
-              <div className="form-group">
-                <label>Justificativa *</label>
-                <textarea
-                  value={formData.justificativa}
-                  onChange={(e) => setFormData({ ...formData, justificativa: e.target.value })}
-                  rows={3}
-                  required
-                  placeholder="Explique a necessidade dos brindes..."
-                />
-              </div>
+            <div className="form-group">
+              <label>Observações</label>
+              <textarea
+                value={formData.observacoes}
+                onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                rows={2}
+              />
+            </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Finalidade</label>
-                  <input
-                    type="text"
-                    value={formData.finalidade}
-                    onChange={(e) => setFormData({ ...formData, finalidade: e.target.value })}
-                    placeholder="Ex: Expodireto, Visita Técnica..."
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Prazo de Entrega</label>
-                  <input
-                    type="date"
-                    value={formData.prazoEntrega}
-                    onChange={(e) => setFormData({ ...formData, prazoEntrega: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Endereço de Entrega</label>
-                <textarea
-                  value={formData.enderecoEntrega}
-                  onChange={(e) => setFormData({ ...formData, enderecoEntrega: e.target.value })}
-                  rows={2}
-                  placeholder="Endereço completo para entrega..."
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Observações</label>
-                <textarea
-                  value={formData.observacoes}
-                  onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                  rows={2}
-                />
-              </div>
-
-              <div className="form-actions">
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
-                  onClick={() => setShowForm(false)}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-primary" disabled={submitting}>
-                  {submitting ? 'Enviando...' : 'Enviar Solicitação'}
-                </button>
-              </div>
-            </form>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowForm(false)}
+                disabled={submitting}
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="btn-primary" disabled={submitting}>
+                {submitting ? 'Enviando...' : 'Enviar Solicitação'}
+              </button>
+            </div>
+          </form>
+        </div>
       </Modal>
     </div>
   );
