@@ -16,13 +16,38 @@ export interface LoginResponse {
 
 export const authService = {
   login: async (email: string, senha: string): Promise<LoginResponse> => {
-    const response = await api.post('/auth/login', { email, senha });
-    // Salvar token no localStorage
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
+    console.log('[AUTH] Enviando requisição de login', {
+      email,
+      baseURL: api.defaults.baseURL,
+      url: '/auth/login',
+    });
+
+    try {
+      const response = await api.post('/auth/login', { email, senha });
+      // Salvar token no localStorage
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('usuario', JSON.stringify(response.data.usuario));
+      }
+
+      console.log('[AUTH] Login bem-sucedido no frontend', {
+        email: response.data.usuario?.email,
+        perfil: response.data.usuario?.perfil,
+      });
+
+      return response.data;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const data = error?.response?.data;
+
+      console.error('[AUTH] Falha na requisição de login', {
+        email,
+        status,
+        data,
+      });
+
+      throw error;
     }
-    return response.data;
   },
 
   register: async (data: {

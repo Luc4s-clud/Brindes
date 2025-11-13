@@ -71,10 +71,15 @@ export const aprovarSolicitacao = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    const itensParaAtualizar = solicitacao.itens.map(item => ({
+      brindeId: item.brindeId,
+      quantidade: item.quantidade,
+    }));
+
     // Criar aprovação e atualizar solicitação
     const resultado = await prisma.$transaction(async (tx) => {
       // Criar registro de aprovação
-      const aprovacao = await tx.aprovacao.create({
+      await tx.aprovacao.create({
         data: {
           solicitacaoId: solicitacao.id,
           aprovadorId,
@@ -85,11 +90,37 @@ export const aprovarSolicitacao = async (req: AuthRequest, res: Response) => {
       });
 
       // Atualizar status da solicitação
-      const solicitacaoAtualizada = await tx.solicitacao.update({
+      await tx.solicitacao.update({
         where: { id: solicitacao.id },
         data: {
           status: StatusSolicitacao.APROVADA,
         },
+      });
+
+      // Atualizar orçamento utilizado
+      await tx.centroCusto.update({
+        where: { id: solicitacao.centroCustoId },
+        data: {
+          orcamentoUtilizado: {
+            increment: valorTotal,
+          },
+        },
+      });
+
+      // Reduzir estoque dos brindes
+      for (const item of itensParaAtualizar) {
+        await tx.brinde.update({
+          where: { id: item.brindeId },
+          data: {
+            quantidade: {
+              decrement: item.quantidade,
+            },
+          },
+        });
+      }
+
+      const solicitacaoResultado = await tx.solicitacao.findUnique({
+        where: { id: solicitacao.id },
         include: {
           solicitante: {
             select: {
@@ -118,29 +149,11 @@ export const aprovarSolicitacao = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      // Atualizar orçamento utilizado
-      await tx.centroCusto.update({
-        where: { id: solicitacao.centroCustoId },
-        data: {
-          orcamentoUtilizado: {
-            increment: valorTotal,
-          },
-        },
-      });
-
-      // Reduzir estoque dos brindes
-      for (const item of solicitacao.itens) {
-        await tx.brinde.update({
-          where: { id: item.brindeId },
-          data: {
-            quantidade: {
-              decrement: item.quantidade,
-            },
-          },
-        });
+      if (!solicitacaoResultado) {
+        throw new Error('Solicitação não encontrada após aprovação.');
       }
 
-      return solicitacaoAtualizada;
+      return solicitacaoResultado;
     });
 
     res.json(resultado);

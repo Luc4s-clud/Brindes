@@ -19,6 +19,21 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+if (process.env.NODE_ENV !== 'production') {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    try {
+      const parsed = new URL(databaseUrl);
+      const maskedUrl = `${parsed.protocol}//${parsed.username ? '***:***@' : ''}${parsed.host}${parsed.pathname}`;
+      console.log('[DB] Conectando ao banco de dados (sanitizado):', maskedUrl);
+    } catch (error) {
+      console.warn('[DB] Não foi possível analisar DATABASE_URL', error);
+    }
+  } else {
+    console.warn('[DB] DATABASE_URL não definido.');
+  }
+}
+
 const allowedOriginsEnv = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
 const allowedOrigins = allowedOriginsEnv
   .split(',')

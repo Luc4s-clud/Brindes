@@ -16,6 +16,13 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  console.log('[API] Requisição iniciada', {
+    method: config.method?.toUpperCase(),
+    baseURL: config.baseURL,
+    url: config.url,
+  });
+
   return config;
 });
 
@@ -23,6 +30,16 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.config) {
+      console.error('[API] Erro na resposta', {
+        method: error.config.method?.toUpperCase(),
+        baseURL: error.config.baseURL,
+        url: error.config.url,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    }
+
     if (error.response?.status === 401) {
       // Token inválido ou expirado
       localStorage.removeItem('token');

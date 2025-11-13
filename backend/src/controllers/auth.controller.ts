@@ -11,6 +11,13 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { email, senha } = req.body;
 
+    console.log('[AUTH] Tentativa de login recebida', {
+      email,
+      origin: req.headers.origin,
+      host: req.headers.host,
+      ip: req.ip,
+    });
+
     if (!email || !senha) {
       return res.status(400).json({ error: 'Email e senha são obrigatórios' });
     }
@@ -30,11 +37,19 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
+    console.log('[AUTH] Resultado da busca de usuário', {
+      email,
+      encontrado: !!usuario,
+      ativo: usuario?.ativo,
+    });
+
     if (!usuario) {
+      console.warn('[AUTH] Credenciais inválidas - usuário não encontrado', { email });
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
     if (!usuario.ativo) {
+      console.warn('[AUTH] Usuário inativo tentou login', { email });
       return res.status(403).json({ error: 'Usuário inativo' });
     }
 
@@ -59,6 +74,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (!senhaValida) {
+      console.warn('[AUTH] Credenciais inválidas - senha incorreta', { email });
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
@@ -86,6 +102,12 @@ export const login = async (req: Request, res: Response) => {
         perfil: usuario.perfil,
         setor: usuario.setor,
       },
+    });
+
+    console.log('[AUTH] Login concluído com sucesso', {
+      userId: usuario.id,
+      email: usuario.email,
+      perfil: usuario.perfil,
     });
   } catch (error: any) {
     console.error('❌ Erro no login:', error);
