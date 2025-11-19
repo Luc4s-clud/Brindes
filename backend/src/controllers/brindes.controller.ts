@@ -6,8 +6,10 @@ export const getAllBrindes = async (req: Request, res: Response) => {
     const { categoria, search, ativo, codigo, estoqueBaixo, semEstoque } = req.query;
     
     // Converter para string para garantir comparação correta
-    const estoqueBaixoStr = estoqueBaixo === 'true' || estoqueBaixo === true || estoqueBaixo === '1';
-    const semEstoqueStr = semEstoque === 'true' || semEstoque === true || semEstoque === '1';
+    const estoqueBaixoValue = Array.isArray(estoqueBaixo) ? estoqueBaixo[0] : estoqueBaixo;
+    const semEstoqueValue = Array.isArray(semEstoque) ? semEstoque[0] : semEstoque;
+    const estoqueBaixoStr = typeof estoqueBaixoValue === 'string' && (estoqueBaixoValue === 'true' || estoqueBaixoValue === '1');
+    const semEstoqueStr = typeof semEstoqueValue === 'string' && (semEstoqueValue === 'true' || semEstoqueValue === '1');
     
     const where: any = {
       ativo: ativo === 'false' ? false : true, // Por padrão mostra apenas ativos
