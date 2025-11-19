@@ -15,6 +15,7 @@ import Aprovacoes from './pages/Aprovacoes';
 import Dashboard from './pages/Dashboard';
 import Recomendacoes from './pages/Recomendacoes';
 import Usuarios from './pages/Usuarios';
+import EstoqueBaixo from './pages/EstoqueBaixo';
 import { queryClient } from './lib/queryClient';
 import './App.css';
 
@@ -91,6 +92,14 @@ function App() {
                     }
                   />
                   <Route path="recomendacoes" element={<Recomendacoes />} />
+                  <Route
+                    path="estoque-baixo"
+                    element={
+                      <ProtectedRoute requiredPerfil={['MARKETING', 'DIRETOR']}>
+                        <EstoqueBaixo />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="usuarios"
                     element={

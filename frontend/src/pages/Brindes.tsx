@@ -4,6 +4,9 @@ import { useToast } from '../contexts/ToastContext';
 import { Modal } from '../components/Modal';
 import { Loading } from '../components/Loading';
 import { debounce } from '../utils/debounce';
+import { uploadService } from '../services/upload.service';
+import { getImageUrl } from '../utils/apiUrl';
+import BrindeThumbnail from '../components/BrindeThumbnail';
 import './Brindes.css';
 
 function Brindes() {
@@ -20,7 +23,10 @@ function Brindes() {
     quantidade: 0,
     valorUnitario: '',
     fornecedor: '',
+    fotoUrl: '',
   });
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
   const { showSuccess, showError } = useToast();
 
   // Debounce da busca
@@ -82,7 +88,9 @@ function Brindes() {
       quantidade: brinde.quantidade,
       valorUnitario: brinde.valorUnitario?.toString() || '',
       fornecedor: brinde.fornecedor || '',
+      fotoUrl: brinde.fotoUrl || '',
     });
+    setFotoPreview(brinde.fotoUrl ? getImageUrl(brinde.fotoUrl) : null);
     setShowForm(true);
   };
 
@@ -107,7 +115,10 @@ function Brindes() {
       quantidade: 0,
       valorUnitario: '',
       fornecedor: '',
+      fotoUrl: '',
     });
+    setFotoPreview(null);
+    setUploadingFoto(false);
     setEditing(null);
     setShowForm(false);
   };
@@ -205,6 +216,58 @@ function Brindes() {
                 </div>
               </div>
 
+              <div className="form-group">
+                <label>Foto do Brinde</label>
+                <div className="foto-upload">
+                  <div className="foto-preview">
+                    {fotoPreview ? (
+                      <img src={fotoPreview} alt={formData.nome} />
+                    ) : (
+                      <span className="foto-placeholder">Nenhuma foto selecionada</span>
+                    )}
+                  </div>
+                  <div className="foto-actions">
+                    <label className="btn-upload">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+
+                          try {
+                            setUploadingFoto(true);
+                            const response = await uploadService.uploadBrindeFoto(file);
+                            setFormData((prev) => ({ ...prev, fotoUrl: response.fotoUrl }));
+                            setFotoPreview(getImageUrl(response.fotoUrl) || response.fotoUrl);
+                            showSuccess('Foto carregada com sucesso!');
+                          } catch (error: any) {
+                            console.error('Erro ao enviar foto:', error);
+                            showError(error.response?.data?.error || 'Erro ao enviar foto');
+                          } finally {
+                            setUploadingFoto(false);
+                            event.target.value = '';
+                          }
+                        }}
+                      />
+                      {uploadingFoto ? 'Enviando...' : 'Selecionar imagem'}
+                    </label>
+                    {fotoPreview && (
+                      <button
+                        type="button"
+                        className="btn-remover-foto"
+                        onClick={() => {
+                          setFormData((prev) => ({ ...prev, fotoUrl: '' }));
+                          setFotoPreview(null);
+                        }}
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="form-actions">
                 <button type="button" className="btn-secondary" onClick={resetForm}>
                   Cancelar
@@ -246,40 +309,51 @@ function Brindes() {
         <div className="brindes-grid">
           {brindes.map((brinde) => (
             <div key={brinde.id} className="brinde-card">
-              <div className="brinde-header">
-                <h3>{brinde.nome}</h3>
-                {brinde.categoria && (
-                  <span className="categoria-badge">{brinde.categoria}</span>
-                )}
+              <div className="brinde-foto-container">
+                <BrindeThumbnail
+                  nome={brinde.nome}
+                  fotoUrl={brinde.fotoUrl}
+                  size="large"
+                  chavesAlternativas={[brinde.codigo, String(brinde.id)]}
+                />
               </div>
               
-              {brinde.descricao && (
-                <p className="brinde-descricao">{brinde.descricao}</p>
-              )}
-              
-              <div className="brinde-info">
-                <div className="info-item">
-                  <strong>Estoque:</strong> {brinde.quantidade}
+              <div className="brinde-content">
+                <div className="brinde-header">
+                  <h3>{brinde.nome}</h3>
+                  {brinde.categoria && (
+                    <span className="categoria-badge">{brinde.categoria}</span>
+                  )}
                 </div>
-                {brinde.valorUnitario && (
-                  <div className="info-item">
-                    <strong>Valor:</strong> R$ {brinde.valorUnitario.toFixed(2)}
-                  </div>
+                
+                {brinde.descricao && (
+                  <p className="brinde-descricao">{brinde.descricao}</p>
                 )}
-                {brinde.fornecedor && (
+                
+                <div className="brinde-info">
                   <div className="info-item">
-                    <strong>Fornecedor:</strong> {brinde.fornecedor}
+                    <strong>Estoque:</strong> {brinde.quantidade}
                   </div>
-                )}
-              </div>
+                  {brinde.valorUnitario && (
+                    <div className="info-item">
+                      <strong>Valor:</strong> R$ {brinde.valorUnitario.toFixed(2)}
+                    </div>
+                  )}
+                  {brinde.fornecedor && (
+                    <div className="info-item">
+                      <strong>Fornecedor:</strong> {brinde.fornecedor}
+                    </div>
+                  )}
+                </div>
 
-              <div className="brinde-actions">
-                <button className="btn-edit" onClick={() => handleEdit(brinde)}>
-                  Editar
-                </button>
-                <button className="btn-delete" onClick={() => handleDelete(brinde.id)}>
-                  Excluir
-                </button>
+                <div className="brinde-actions">
+                  <button className="btn-edit" onClick={() => handleEdit(brinde)}>
+                    Editar
+                  </button>
+                  <button className="btn-delete" onClick={() => handleDelete(brinde.id)}>
+                    Excluir
+                  </button>
+                </div>
               </div>
             </div>
           ))}

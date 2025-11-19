@@ -3,7 +3,11 @@ import { prisma } from '../utils/prisma';
 
 export const getAllBrindes = async (req: Request, res: Response) => {
   try {
-    const { categoria, search, ativo, codigo } = req.query;
+    const { categoria, search, ativo, codigo, estoqueBaixo, semEstoque } = req.query;
+    
+    // Converter para string para garantir comparação correta
+    const estoqueBaixoStr = estoqueBaixo === 'true' || estoqueBaixo === true || estoqueBaixo === '1';
+    const semEstoqueStr = semEstoque === 'true' || semEstoque === true || semEstoque === '1';
     
     const where: any = {
       ativo: ativo === 'false' ? false : true, // Por padrão mostra apenas ativos
@@ -25,12 +29,37 @@ export const getAllBrindes = async (req: Request, res: Response) => {
       ];
     }
 
+    // Filtro para sem estoque (quantidade = 0)
+    if (semEstoqueStr) {
+      where.quantidade = 0;
+    }
+
+    // Para estoque baixo, precisamos buscar todos e filtrar depois
+    // pois o Prisma não permite comparar campos diretamente na query
     const brindes = await prisma.brinde.findMany({
       where,
       orderBy: { nome: 'asc' },
     });
 
-    res.json(brindes);
+    // Filtro para estoque baixo (quantidade <= estoqueMinimo)
+    // Inclui também brindes sem estoque que não têm estoqueMinimo definido
+    // (mesma lógica do dashboard)
+    let filteredBrindes = brindes;
+    if (estoqueBaixoStr) {
+      filteredBrindes = brindes.filter(brinde => {
+        // Brindes com estoqueMinimo definido e quantidade <= estoqueMinimo
+        if (brinde.estoqueMinimo !== null && brinde.quantidade <= brinde.estoqueMinimo) {
+          return true;
+        }
+        // Brindes sem estoque (quantidade = 0) e sem estoqueMinimo definido
+        if (brinde.quantidade === 0 && brinde.estoqueMinimo === null) {
+          return true;
+        }
+        return false;
+      });
+    }
+
+    res.json(filteredBrindes);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

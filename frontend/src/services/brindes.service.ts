@@ -20,7 +20,13 @@ export interface Brinde {
 }
 
 export const brindesService = {
-  getAll: async (params?: { categoria?: string; search?: string; ativo?: boolean }): Promise<Brinde[]> => {
+  getAll: async (params?: { 
+    categoria?: string; 
+    search?: string; 
+    ativo?: boolean;
+    estoqueBaixo?: boolean;
+    semEstoque?: boolean;
+  }): Promise<Brinde[]> => {
     const response = await api.get('/brindes', { params });
     return response.data;
   },
